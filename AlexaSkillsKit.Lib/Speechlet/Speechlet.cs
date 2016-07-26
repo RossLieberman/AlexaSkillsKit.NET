@@ -1,7 +1,6 @@
 ﻿//  Copyright 2015 Stefan Negritoiu (FreeBusy). See LICENSE file for more information.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -10,68 +9,31 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using AlexaSkillsKit.Authentication;
 using AlexaSkillsKit.Json;
+using AlexaSkillsKit.Messages.Validation;
 
 namespace AlexaSkillsKit.Speechlet
 {
     public abstract class Speechlet : ISpeechlet
     {
+
         /// <summary>
         /// Processes Alexa request AND validates request signature
         /// </summary>
         /// <param name="httpRequest"></param>
         /// <returns></returns>
-        public virtual HttpResponseMessage GetResponse(HttpRequestMessage httpRequest) {
-            SpeechletRequestValidationResult validationResult = SpeechletRequestValidationResult.OK;
-            DateTime now = DateTime.UtcNow; // reference time for this request
+        public virtual HttpResponseMessage GetResponse(HttpRequestMessage httpRequest)
+        {
 
-            string chainUrl = null;
-            if (!httpRequest.Headers.Contains(Sdk.SIGNATURE_CERT_URL_REQUEST_HEADER) ||
-                String.IsNullOrEmpty(chainUrl = httpRequest.Headers.GetValues(Sdk.SIGNATURE_CERT_URL_REQUEST_HEADER).First())) {
-                validationResult = validationResult | SpeechletRequestValidationResult.NoCertHeader;
-            }
+            var request = new ValidationRequest { HttpRequest = httpRequest, RequestTime = DateTime.UtcNow };
+            var response = OnRequestValidation(request);
 
-            string signature = null;
-            if (!httpRequest.Headers.Contains(Sdk.SIGNATURE_REQUEST_HEADER) ||
-                String.IsNullOrEmpty(signature = httpRequest.Headers.GetValues(Sdk.SIGNATURE_REQUEST_HEADER).First())) {
-                validationResult = validationResult | SpeechletRequestValidationResult.NoSignatureHeader;
-            }
-
-            var alexaBytes = AsyncHelpers.RunSync<byte[]>(() => httpRequest.Content.ReadAsByteArrayAsync());
-            Debug.WriteLine(httpRequest.ToLogString());
-
-            // attempt to verify signature only if we were able to locate certificate and signature headers
-            if (validationResult == SpeechletRequestValidationResult.OK) {
-                if (!SpeechletRequestSignatureVerifier.VerifyRequestSignature(alexaBytes, signature, chainUrl)) {
-                    validationResult = validationResult | SpeechletRequestValidationResult.InvalidSignature;
-                }
-            }
-
-            SpeechletRequestEnvelope alexaRequest = null;
-            try {
-                var alexaContent = UTF8Encoding.UTF8.GetString(alexaBytes);
-                alexaRequest = SpeechletRequestEnvelope.FromJson(alexaContent);
-            }
-            catch (Newtonsoft.Json.JsonReaderException) {
-                validationResult = validationResult | SpeechletRequestValidationResult.InvalidJson;
-            }
-            catch (InvalidCastException) {
-                validationResult = validationResult | SpeechletRequestValidationResult.InvalidJson;
-            }
-
-            // attempt to verify timestamp only if we were able to parse request body
-            if (alexaRequest != null) {
-                if (!SpeechletRequestTimestampVerifier.VerifyRequestTimestamp(alexaRequest, now)) {
-                    validationResult = validationResult | SpeechletRequestValidationResult.InvalidTimestamp;
-                }
-            }
-
-            if (alexaRequest == null || !OnRequestValidation(validationResult, now, alexaRequest)) {
+            if (!response.Success) {
                 return new HttpResponseMessage(HttpStatusCode.BadRequest) {
-                    ReasonPhrase = validationResult.ToString()
+                    ReasonPhrase = response.ValidationResult.ToString()
                 };
             }
 
-            string alexaResponse = DoProcessRequest(alexaRequest);
+            string alexaResponse = DoProcessRequest(response.AlexaRequest);
 
             HttpResponseMessage httpResponse;
             if (alexaResponse == null) {
@@ -182,15 +144,84 @@ namespace AlexaSkillsKit.Speechlet
             }
         }
 
+        /// <summary>
+        /// Takes HttpRequest.Context.Bytes and converts to an Alexa Request.
+        /// The response is passed in as a reference object since updating multiple values.
+        /// </summary>
+        public virtual void GetRequest(byte[] alexaBytes, ref ValidationResponse response)
+        {
+            try
+            {
+                var alexaContent = UTF8Encoding.UTF8.GetString(alexaBytes);
+                response.AlexaRequest = SpeechletRequestEnvelope.FromJson(alexaContent);
+            }
+            catch (Newtonsoft.Json.JsonReaderException)
+            {
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidJson;
+            }
+            catch (InvalidCastException)
+            {
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidJson;
+            }
+            catch (Exception ex)
+            {
+                //TODO: Log Error
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.Error;
+            }
+        }
+        
 
         /// <summary>
         /// Opportunity to set policy for handling requests with invalid signatures and/or timestamps
         /// </summary>
-        /// <returns>true if request processing should continue, otherwise false</returns>
-        public virtual bool OnRequestValidation(
-            SpeechletRequestValidationResult result, DateTime referenceTimeUtc, SpeechletRequestEnvelope requestEnvelope) {
-            
-            return result == SpeechletRequestValidationResult.OK;
+        /// <returns>Validation Response Object. Success will be true if tests pass</returns>
+        public virtual ValidationResponse OnRequestValidation(ValidationRequest request)
+        {
+            var response = new ValidationResponse
+            {
+                ValidationResult = SpeechletRequestValidationResult.OK
+            };
+
+            string chainUrl = null;
+            if (!request.HttpRequest.Headers.Contains(Sdk.SIGNATURE_CERT_URL_REQUEST_HEADER) ||
+                String.IsNullOrEmpty(chainUrl = request.HttpRequest.Headers.GetValues(Sdk.SIGNATURE_CERT_URL_REQUEST_HEADER).First()))
+            {
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.NoCertHeader;
+            }
+
+            string signature = null;
+            if (!request.HttpRequest.Headers.Contains(Sdk.SIGNATURE_REQUEST_HEADER) ||
+                String.IsNullOrEmpty(signature = request.HttpRequest.Headers.GetValues(Sdk.SIGNATURE_REQUEST_HEADER).First()))
+            {
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.NoSignatureHeader;
+            }
+
+            var alexaBytes = AsyncHelpers.RunSync<byte[]>(() => request.HttpRequest.Content.ReadAsByteArrayAsync());
+            Debug.WriteLine(request.HttpRequest.ToLogString());
+
+            // attempt to verify signature only if we were able to locate certificate and signature headers
+            if (response.ValidationResult == SpeechletRequestValidationResult.OK)
+            {
+                if (!SpeechletRequestSignatureVerifier.VerifyRequestSignature(alexaBytes, signature, chainUrl))
+                {
+                    response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidSignature;
+                }
+            }
+
+            GetRequest(alexaBytes, ref response);
+
+            // attempt to verify timestamp only if we were able to parse request body
+            if (response.AlexaRequest != null)
+            {
+                if (!SpeechletRequestTimestampVerifier.VerifyRequestTimestamp(response.AlexaRequest, request.RequestTime))
+                {
+                    response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidTimestamp;
+                }
+            }
+
+            response.Success = (response.ValidationResult == SpeechletRequestValidationResult.OK);
+
+            return response;
         }
 
 

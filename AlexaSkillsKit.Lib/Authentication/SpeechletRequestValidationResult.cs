@@ -12,6 +12,7 @@ namespace AlexaSkillsKit.Authentication
         NoCertHeader = 2,
         InvalidSignature = 4,
         InvalidTimestamp = 8,
-        InvalidJson = 16
+        InvalidJson = 16,
+        Error = 32
     }
 }

@@ -2,6 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using AlexaSkillsKit;
+using AlexaSkillsKit.Authentication;
+using AlexaSkillsKit.Messages.Validation;
 using NLog;
 using AlexaSkillsKit.Speechlet;
 using AlexaSkillsKit.Slu;
@@ -133,7 +137,24 @@ namespace Sample.Controllers
             return BuildSpeechletResponse(intent.Name, speechOutput, shouldEndSession);
         }
 
+		/*
+        public override ValidationResponse OnRequestValidation(ValidationRequest request)
+        {
+            var response = new ValidationResponse
+            {
+                ValidationResult = SpeechletRequestValidationResult.OK,
+                Success = true
+            };
 
+            var alexaBytes = AsyncHelpers.RunSync<byte[]>(() => request.HttpRequest.Content.ReadAsByteArrayAsync());
+            Debug.WriteLine(request.HttpRequest.ToLogString());
+
+            GetRequest(alexaBytes, ref response);
+
+            return response;
+        }
+		*/
+		
         /**
          * Creates and returns the visual and spoken response with shouldEndSession flag
          * 

@@ -59,6 +59,8 @@
     <Compile Include="HttpHelpers.cs" />
     <Compile Include="Json\SpeechletRequestEnvelope.cs" />
     <Compile Include="Json\SpeechletResponseEnvelope.cs" />
+    <Compile Include="Messages\Validation\ValidationResponse.cs" />
+    <Compile Include="Messages\Validation\ValidationRequest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Sdk.cs" />
     <Compile Include="Slu\Intent.cs" />
