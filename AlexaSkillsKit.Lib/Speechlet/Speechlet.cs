@@ -123,7 +123,7 @@ namespace AlexaSkillsKit.Speechlet
         /// <summary>
         /// 
         /// </summary>
-        private void DoSessionManagement(IntentRequest request, Session session) {
+        public void DoSessionManagement(IntentRequest request, Session session) {
             if (session.IsNew) {
                 session.Attributes[Session.INTENT_SEQUENCE] = request.Intent.Name;
             }
@@ -163,6 +163,10 @@ namespace AlexaSkillsKit.Speechlet
             {
                 response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidJson;
             }
+            catch (SpeechletException)
+            {
+                response.ValidationResult = response.ValidationResult | SpeechletRequestValidationResult.InvalidSpeechlet;
+            }
             catch (Exception ex)
             {
                 //TODO: Log Error
@@ -197,7 +201,7 @@ namespace AlexaSkillsKit.Speechlet
             }
 
             var alexaBytes = AsyncHelpers.RunSync<byte[]>(() => request.HttpRequest.Content.ReadAsByteArrayAsync());
-            Debug.WriteLine(request.HttpRequest.ToLogString());
+            //Debug.WriteLine(request.HttpRequest.ToLogString());
 
             // attempt to verify signature only if we were able to locate certificate and signature headers
             if (response.ValidationResult == SpeechletRequestValidationResult.OK)

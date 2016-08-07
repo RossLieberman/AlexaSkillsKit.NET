@@ -13,6 +13,7 @@ namespace AlexaSkillsKit.Authentication
         InvalidSignature = 4,
         InvalidTimestamp = 8,
         InvalidJson = 16,
-        Error = 32
+        Error = 32,
+        InvalidSpeechlet = 64
     }
 }

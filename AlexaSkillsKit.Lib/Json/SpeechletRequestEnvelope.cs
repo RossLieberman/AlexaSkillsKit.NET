@@ -58,7 +58,7 @@ namespace AlexaSkillsKit.Json
                     request = new SessionEndedRequest(requestId, timestamp, reason);
                     break;
                 default:
-                    throw new ArgumentException("json");
+                    throw new SpeechletException("Unable to determine Request Type.");
             }
 
             return new SpeechletRequestEnvelope {
